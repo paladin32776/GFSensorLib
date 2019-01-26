@@ -95,3 +95,18 @@ class bme280:
 
     def read(self):
         return self.get_temperature(), self.get_pressure(), self.get_humidity()
+
+
+class bh1750:
+
+    def __init__(self, addr=0x23):
+        self.i2c = SMBus(1)
+        self.addr = addr
+
+    def convertToNumber(self, data):
+        result=(data[1] + (256 * data[0])) / 1.2
+        return (result)
+
+    def read(self):
+        data = self.i2c.read_i2c_block_data(self.addr, 0x20)
+        return self.convertToNumber(data)
