@@ -1,10 +1,12 @@
 # Description:
-# Library for Bosch BME280 on RaspberryPi
-# I2C based temprature, pressure, and
+# Sensor library for RaspberryPi
+# Supporting:
+# - Bosch BME280 temprature, pressure, and
 # humidity sensor.
+# - BH1750 light sensor.
 # Author: Gernot Fattinger
-# Date: 2019-01-25
-# V1.0
+# Date: 2019-01-26
+# V1.1
 
 from smbus import SMBus
 
