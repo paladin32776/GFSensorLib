@@ -1,4 +1,3 @@
-import time
 from GFSensorLib import bme280
 
 sensor = bme280(0x77)
