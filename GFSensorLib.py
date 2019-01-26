@@ -6,11 +6,11 @@
 # Date: 2019-01-25
 # V1.0
 
-from smbus import SMBus
+from smbus import SMBus 
 
 class bme280:
 
-    def __init__(self, addr = 0x76): 
+    def __init__(self, addr = 0x76):
         self.i2c = SMBus(1)
         self.addr = addr
         self.get_compensation_values()
