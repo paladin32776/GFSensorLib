@@ -8,6 +8,7 @@
 # Date: 2019-01-26
 # V1.1
 
+import time
 from smbus import SMBus
 
 class bme280:
@@ -58,17 +59,35 @@ class bme280:
         self.dig_H5 = self.int_to_signed_short((self.i2c.read_byte_data(self.addr,0xE6)<<4) + ((self.i2c.read_byte_data(self.addr,0xE5)>>4) & 0x0F))
         self.dig_H6 = self.int_to_signed_char(self.i2c.read_byte_data(self.addr,0xE7))
 
+    def calc_delay(self, t_oversampling, h_oversampling, p_oversampling):
+        t_delay = 0.000575 + 0.0023 * (1 << t_oversampling)
+        h_delay = 0.000575 + 0.0023 * (1 << h_oversampling)
+        p_delay = 0.001250 + 0.0023 * (1 << p_oversampling)
+        return t_delay + h_delay + p_delay
 
-    def get_temperature(self):
-        adc_T = (self.i2c.read_byte_data(self.addr,0xFA)<<12) + (self.i2c.read_byte_data(self.addr,0xFB)<<4) + ((self.i2c.read_byte_data(self.addr,0xFC) & 0xF0)>>4)
+    def get_adc_data(self):
+        mode = 1  # forced
+        t_oversampling = 1
+        h_oversampling = 1
+        p_oversampling = 1
+        self.i2c.write_byte_data(self.addr, 0xF2, h_oversampling)  # ctrl_hum
+        self.i2c.write_byte_data(self.addr, 0xF4, t_oversampling << 5 | p_oversampling << 2 | mode)  # ctrl
+        delay = self.calc_delay(t_oversampling, h_oversampling, p_oversampling)
+        time.sleep(delay)
+        data = self.i2c.read_i2c_block_data(self.addr, 0xF7, 8)
+        adc_T = (data[3]<<12) + (data[4]<<4) + ((data[5] & 0xF0)>>4)
+        adc_P = (data[0]<<12) + (data[1]<<4) + ((data[2] & 0xF0)>>4)
+        adc_H = (data[6]<<8) + (data[7]<<4)
+        return adc_T, adc_P, adc_H
+
+    def convert_data(self, data):
+        adc_T, adc_P, adc_H = data
+        # Temperature conversion
         var1 = ((adc_T>>3)-(self.dig_T1<<1))*self.dig_T2>>11
         var2 = ( (((adc_T>>4)-self.dig_T1)*((adc_T>>4)-self.dig_T1)) >> 12 ) * self.dig_T3 >> 14
         self.t_fine = var1 + var2
         T =((self.t_fine*5+128)>>8)/100
-        return T
-
-    def get_pressure(self):
-        adc_P = (self.i2c.read_byte_data(self.addr,0xF7)<<12) + (self.i2c.read_byte_data(self.addr,0xF8)<<4) + ((self.i2c.read_byte_data(self.addr,0xF9) & 0xF0)>>4)
+        # Pressure conversion
         var1 = self.t_fine-128000
         var2 = var1 * var1 * self.dig_P6
         var2 = var2 + (var1*self.dig_P5<<17)
@@ -83,20 +102,17 @@ class bme280:
             var1 = self.dig_P9*(p>>13)*(p>>13) >> 25
             var2 = self.dig_P8*p >> 19
             p = ((p+var1+var2 >> 8)+(self.dig_P7 << 4))/25600
-        return p
-
-    def get_humidity(self):
-        adc_H = (self.i2c.read_byte_data(self.addr,0xFD)<<8) + self.i2c.read_byte_data(self.addr,0xFE)
+        # Humidity conversion
         v_x1_u32r = (self.t_fine-76800)
         v_x1_u32r = (((((adc_H<<14)-(self.dig_H4<<20)-(self.dig_H5*v_x1_u32r))+16384)>>15)*((((((v_x1_u32r*self.dig_H6>>10)*((v_x1_u32r*self.dig_H3>>11)+32768))>>10)+2097152)*self.dig_H2+8192)>>14))
         v_x1_u32r = (v_x1_u32r-(((((v_x1_u32r>>15)*(v_x1_u32r>>15))>>7)*self.dig_H1)>>4))
         v_x1_u32r = 0 if v_x1_u32r < 0 else v_x1_u32r
         v_x1_u32r = 419430400 if v_x1_u32r > 419430400 else v_x1_u32r
         rh = (v_x1_u32r>>12)/1024
-        return rh
+        return T, p, rh
 
     def read(self):
-        return self.get_temperature(), self.get_pressure(), self.get_humidity()
+        return self.convert_data(self.get_adc_data())
 
 
 class bh1750:
