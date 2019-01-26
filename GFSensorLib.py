@@ -6,7 +6,7 @@
 # Date: 2019-01-25
 # V1.0
 
-from smbus import SMBus 
+from smbus import SMBus
 
 class bme280:
 
