@@ -13,10 +13,11 @@ from smbus import SMBus
 
 class bme280:
 
-    def __init__(self, addr = 0x76):
+    def __init__(self, addr = 0x76, oversampling = 2):
         self.i2c = SMBus(1)
         self.addr = addr
         self.get_compensation_values()
+        self.oversampling = oversampling
 
     def measuring(self):
         return ((self.i2c.read_byte_data(self.addr,0xF3) & 8) > 0)
@@ -67,9 +68,9 @@ class bme280:
 
     def get_adc_data(self):
         mode = 1  # forced
-        t_oversampling = 1
-        h_oversampling = 1
-        p_oversampling = 1
+        t_oversampling = self.oversampling
+        h_oversampling = self.oversampling
+        p_oversampling = self.oversampling
         self.i2c.write_byte_data(self.addr, 0xF2, h_oversampling)  # ctrl_hum
         self.i2c.write_byte_data(self.addr, 0xF4, t_oversampling << 5 | p_oversampling << 2 | mode)  # ctrl
         delay = self.calc_delay(t_oversampling, h_oversampling, p_oversampling)
@@ -77,7 +78,7 @@ class bme280:
         data = self.i2c.read_i2c_block_data(self.addr, 0xF7, 8)
         adc_T = (data[3]<<12) + (data[4]<<4) + ((data[5] & 0xF0)>>4)
         adc_P = (data[0]<<12) + (data[1]<<4) + ((data[2] & 0xF0)>>4)
-        adc_H = (data[6]<<8) + (data[7]<<4)
+        adc_H = (data[6]<<8) + data[7]
         return adc_T, adc_P, adc_H
 
     def convert_data(self, data):
@@ -103,12 +104,13 @@ class bme280:
             var2 = self.dig_P8*p >> 19
             p = ((p+var1+var2 >> 8)+(self.dig_P7 << 4))/25600
         # Humidity conversion
-        v_x1_u32r = (self.t_fine-76800)
-        v_x1_u32r = (((((adc_H<<14)-(self.dig_H4<<20)-(self.dig_H5*v_x1_u32r))+16384)>>15)*((((((v_x1_u32r*self.dig_H6>>10)*((v_x1_u32r*self.dig_H3>>11)+32768))>>10)+2097152)*self.dig_H2+8192)>>14))
-        v_x1_u32r = (v_x1_u32r-(((((v_x1_u32r>>15)*(v_x1_u32r>>15))>>7)*self.dig_H1)>>4))
-        v_x1_u32r = 0 if v_x1_u32r < 0 else v_x1_u32r
-        v_x1_u32r = 419430400 if v_x1_u32r > 419430400 else v_x1_u32r
-        rh = (v_x1_u32r>>12)/1024
+        var1 = (self.t_fine-76800)
+        var1 = (((((adc_H<<14)-(self.dig_H4<<20)-(self.dig_H5*var1))+16384)>>15)*((((((var1*self.dig_H6>>10)*((var1*self.dig_H3>>11)+32768))>>10)+2097152)*self.dig_H2+8192)>>14))
+        var1 = (var1-(((((var1>>15)*(var1>>15))>>7)*self.dig_H1)>>4))
+        var1 = 0 if var1 < 0 else var1
+        var1 = 419430400 if var1 > 419430400 else var1
+        rh = (var1>>12)/1024
+
         return T, p, rh
 
     def read(self):
