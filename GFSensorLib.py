@@ -4,9 +4,10 @@
 # - Bosch BME280 temprature, pressure, and
 # humidity sensor.
 # - BH1750 light sensor.
+# - ADS1015 analog-digital converter
 # Author: Gernot Fattinger
-# Date: 2019-01-26
-# V1.1
+# Date: 2019-02-02
+# V1.2
 
 import time
 from smbus import SMBus
@@ -130,3 +131,121 @@ class bh1750:
     def read(self):
         data = self.i2c.read_i2c_block_data(self.addr, 0x20)
         return self.convertToNumber(data)
+
+
+class ads1015:
+
+    def __init__(self, addr = 0x48):
+        self.i2c = SMBus(1)
+        self.addr = addr
+        self.constants()
+        self.mux = self.get(self.MUX)
+        self.gain = self.get(self.GAIN)
+        self.mode = self.get(self.MODE)
+        self.data_rate = self.get(self.DATA_RATE)
+        self.comp_mode = self.get(self.COMP_MODE)
+        self.comp_pol = self.get(self.COMP_POL)
+        self.comp_lat = self.get(self.COMP_LAT)
+        self.comp_que = self.get(self.COMP_QUE)
+
+    def constants(self):
+        # Register adresses
+        self.CONV_REG = 0b00
+        self.CONFIG_REG = 0b01
+        self.LO_TRESH_REG = 0b10
+        self.HI_TRESH_REG = 0b11
+        # Input MUX
+        self.MUX = (12, 3, 'mux')
+        self.MUX_DIFF_01 = 0b000
+        self.MUX_DIFF_03 = 0b001
+        self.MUX_DIFF_13 = 0b010
+        self.MUX_DIFF_23 = 0b011
+        self.MUX_0 = 0b100
+        self.MUX_1 = 0b101
+        self.MUX_2 = 0b110
+        self.MUX_3 = 0b111
+        # Gain
+        self.GAIN = (9, 3, 'gain')
+        self.GAIN_0 = 0b000  # +/-6.144V
+        self.GAIN_1 = 0b001  # +/-4.096V
+        self.GAIN_2 = 0b010  # +/-2.048V
+        self.GAIN_3 = 0b011  # +/-1.024V
+        self.GAIN_4 = 0b100  # +/-0.512V
+        self.GAIN_5 = 0b101  # +/-0.256V
+        self.VRANGE = [6.144, 4.096, 2.048, 1.024, 0.512, 0.256]
+        # Conversion mode
+        self.MODE = (8, 1, 'mode')
+        self.MODE_CONTINUOUS = 0b0
+        self.MODE_SINGLE_SHOT = 0b1
+        # Data rate
+        self.DATA_RATE = (5, 3, 'data_rate')
+        self.DATA_RATE_128SPS = 0b000
+        self.DATA_RATE_250SPS = 0b001
+        self.DATA_RATE_490SPS = 0b010
+        self.DATA_RATE_920SPS = 0b011
+        self.DATA_RATE_1600SPS = 0b100
+        self.DATA_RATE_2400SPS = 0b101
+        self.DATA_RATE_3300SPS = 0b110
+        # Comperator mode
+        self.COMP_MODE = (4, 1, 'comp_mode')
+        self.COMP_MODE_NORMAL = 0b0
+        self.COMP_MODE_WINDOW = 0b1
+        # Comperator polarity
+        self.COMP_POL = (3, 1, 'comp_pol')
+        self.COMP_POL_NORMAL = 0b0
+        self.COMP_POL_INVERTED = 0b1
+        # Comperator latching
+        self.COMP_LAT = (2, 1, 'comp_lat')
+        self.COMP_LAT_OFF = 0b0
+        self.COMP_LAT_ON = 0b1
+        # Comperator queue
+        self.COMP_QUE = (0, 2, 'comp_que')
+        self.COMP_QUE_1 = 0b00
+        self.COMP_QUE_2 = 0b01
+        self.COMP_QUE_4 = 0b10
+        self.COMP_QUE_OFF =  0b11
+
+    def bitwrite16(self, word, value, bitshift, bitwidth):
+        return ((word & (0xFFFF - ((2**bitwidth-1)<<bitshift))) | (value<<bitshift))
+
+    def byteswap(self, word):
+        return ((word>>8) & 0x00FF) + ((word<<8) & 0xFF00)
+
+    def get(self, parameter):
+        config = self.byteswap(self.i2c.read_word_data(self.addr, self.CONFIG_REG))
+        return (config>>parameter[0]) & (2**parameter[1]-1)
+
+    def set(self, parameter, value):
+        config = self.byteswap(self.i2c.read_word_data(self.addr, self.CONFIG_REG))
+        config = self.bitwrite16(config, value, bitshift=parameter[0], bitwidth=parameter[1]) & 0x7FFF
+        self.i2c.write_word_data(self.addr, self.CONFIG_REG, self.byteswap(config))
+        setattr(self, parameter[2], value)
+
+    def convert(self):
+        config = self.byteswap(self.i2c.read_word_data(self.addr, self.CONFIG_REG))
+        config = config | 0x8000
+        self.i2c.write_word_data(self.addr, self.CONFIG_REG, self.byteswap(config))
+
+    def isconverting(self):
+        config = self.byteswap(self.i2c.read_word_data(self.addr, self.CONFIG_REG))
+        return ((config & 0x8000)==0)
+
+    def read(self, mux=None):
+        if mux in [0,1,2,3,4,5,6,7]:
+            self.set(self.MUX, mux)
+        if self.mode==self.MODE_SINGLE_SHOT:
+            self.convert()
+            while self.isconverting():
+                pass
+        return self.byteswap(self.i2c.read_word_data(self.addr, self.CONV_REG))
+
+    def voltage(self,mux=None):
+        return self.read(mux)*self.VRANGE[self.gain]/0x7FFF
+
+    def set_input(self, pin=None):
+        if pin in [0,1,2,3]:
+            self.set(self.MUX, pin+4)
+
+    def set_gain(self, gain=None):
+        if gain in [0,1,2,3,4,5]:
+            self.set(self.GAIN, gain)
