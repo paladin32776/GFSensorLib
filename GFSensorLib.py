@@ -123,14 +123,27 @@ class bh1750:
     def __init__(self, addr=0x23):
         self.i2c = SMBus(1)
         self.addr = addr
+        self.sens = 1.0
+        self.sensitivity(self.sens)
 
     def convertToNumber(self, data):
-        result=(data[1] + (256 * data[0])) / 1.2
+        result=(data[1] + (256 * data[0])) / 1.2 / self.sens
         return (result)
 
     def read(self):
         data = self.i2c.read_i2c_block_data(self.addr, 0x20)
         return self.convertToNumber(data)
+
+    def sensitivity(self, sens=None):
+        if sens==None:
+            return self.sens
+        S = int(round(sens*69,0))
+        S = max(min(S,254),31)
+        LS = (S & 0x1F) | 0x60
+        HS = ((S>>5) & 0x07) | 0x40
+        self.i2c.write_byte(self.addr, LS)
+        self.i2c.write_byte(self.addr, HS)
+        self.sens = sens
 
 
 class ads1015:
