@@ -262,3 +262,32 @@ class ads1015:
     def set_gain(self, gain=None):
         if gain in [0,1,2,3,4,5]:
             self.set(self.GAIN, gain)
+
+class veml6075:
+
+    def __init__(self, addr = 0x10):
+        self.i2c = SMBus(1)
+        self.addr = addr
+        self.i2c.write_byte_data(self.addr, 0x00, (0 & 7)<<4)
+        self.a = 2.22
+        self.c = 2.95
+        self.b = 1.33
+        self.d = 1.74
+        self.UVAresp = 0.001461
+        self.UVBresp = 0.002591
+        self.UVA2Wm = 1/93
+        self.UVB2Wm = 1/210
+
+    def read(self):
+        UVA = self.i2c.read_word_data(self.addr,0x07)
+        UVB = self.i2c.read_word_data(self.addr,0x09)
+        UVcomp1 = self.i2c.read_word_data(self.addr,0x0A)
+        UVcomp2 = self.i2c.read_word_data(self.addr,0x0B)
+        UVAcalc = UVA - (self.a*UVcomp1) - (self.b*UVcomp2)
+        UVBcalc = UVB - (self.c*UVcomp1) - (self.d*UVcomp2)
+        UVAI = UVAcalc * self.UVAresp
+        UVBI = UVBcalc * self.UVBresp
+        UVI = (UVAI + UVBI)/2
+        UVAWm = UVAcalc * self.UVA2Wm
+        UVBWm = UVBcalc * self.UVB2Wm
+        return UVI
