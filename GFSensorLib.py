@@ -94,7 +94,7 @@ class bme280:
         self.i2c.write_byte_data(self.addr, 0xF2, h_oversampling)  # ctrl_hum
         self.i2c.write_byte_data(self.addr, 0xF4, t_oversampling << 5 | p_oversampling << 2 | mode)  # ctrl
         delay = self.calc_delay(t_oversampling, h_oversampling, p_oversampling)
-        time.sleep(delay)
+        sleep(delay)
         data = self.i2c.read_i2c_block_data(self.addr, 0xF7, 8)
         adc_T = (data[3]<<12) + (data[4]<<4) + ((data[5] & 0xF0)>>4)
         adc_P = (data[0]<<12) + (data[1]<<4) + ((data[2] & 0xF0)>>4)
