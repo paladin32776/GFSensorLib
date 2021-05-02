@@ -1,1 +1,1 @@
-from .GFSensorLib import *
+from .GFSensorlib import *
