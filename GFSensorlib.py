@@ -410,7 +410,7 @@ class lidarv4:
         self.i2c.write_byte_data(self.addr, self.LIDAR_ACQUISITION_COUNT, acq_count)
 
 
-class PMS5003:
+class pms5003:
     def __init__(self):
         self.ser = serial.Serial(
                port='/dev/serial0',
