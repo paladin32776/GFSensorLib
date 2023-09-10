@@ -9,6 +9,7 @@ Contains support for
  - VEML6075 UVA/UVB light sensor
  - Garmin Lidar Lite v4 LED
  - PMS5003 particle sensor
+ - BTU21D humidity and temperature sensor.
 
 Usage:
 

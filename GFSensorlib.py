@@ -28,7 +28,7 @@
 
 from time import sleep, time
 from statistics import median
-from smbus import SMBus
+from smbus2 import SMBus, i2c_msg
 import serial
 
 class bme280:
@@ -432,3 +432,33 @@ class pms5003:
                     'DB0p3um','DB0p5um','DB1um',
                     'DB2p5um','DB5um','DB10um']
         return {k:v for (k,v) in zip(varnames,values)}
+
+
+class htu21d:
+
+    TRIGGER_T_MEAS_HOLD = 0xE3
+    TRIGGER_H_MEAS_HOLD = 0xE5
+    TRIGGER_T_MEAS_NO_HOLD = 0xF3
+    TRIGGER_H_MEAS_NO_HOLD = 0xF5
+    WRITE_USER_REGISTER = 0xE6
+    READ_USER_REGISTER = 0xE7
+    SOFT_RESET = 0xFE
+
+    def __init__(self, addr = 0x40):
+        self.i2c = SMBus(1)
+        self.addr = addr
+        self.read_3_bytes = i2c_msg.read(self.addr,3)
+
+    def read(self):
+        self.i2c.write_byte(self.addr, self.TRIGGER_T_MEAS_NO_HOLD)
+        sleep(0.06)
+        self.i2c.i2c_rdwr(self.read_3_bytes)
+        Td = list(self.read_3_bytes)
+        T = -46.85 + 175.72*((Td[0]*256 + Td[1]) & 0xFFFC)/65536
+        self.i2c.write_byte(self.addr, self.TRIGGER_H_MEAS_NO_HOLD)
+        sleep(0.06)
+        self.i2c.i2c_rdwr(self.read_3_bytes)
+        Hd = list(self.read_3_bytes)
+        H = -6 + 125*((Hd[0]*256 + Hd[1]) & 0xFFFC)/65536
+        H = max(min(H,100),0)
+        return T,H
