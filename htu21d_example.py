@@ -1,4 +1,4 @@
-from GFSensorlib import htu21d
+from GFSensorLib import htu21d
 
 sensor = htu21d()
 while True:
